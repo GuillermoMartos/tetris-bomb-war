@@ -1,95 +1,106 @@
-import Image from "next/image";
+'use client'
+import { UseAppDispatch, useAppSelector } from "@/redux/hooks";
 import styles from "./page.module.css";
+import { startEndGame, nextTetra, tetras } from "@/redux/actions/piezasSlice";
+import { useEffect, useState } from "react";
+
 
 export default function Home() {
+  const jueguito = useAppSelector((state) => state.playing)
+  const dispatch = UseAppDispatch()
+  var pieza =  useAppSelector((s) => s.nextTetraedrum)
+  const [copyPieza, setCopyPieza] = useState<null|tetras>(null)
+  const [tableroMatrix, setTableroMatrix] = useState(Array(20).fill(0).map(() => Array(10).fill(0)))
+  
+
+  useEffect(() => {
+    if (!pieza && jueguito) {
+      dispatch(nextTetra({ playing: true, currentTetraedrum: { x: 0, y: 0 }, nextTetraedrum: { x: 0, y: 1 } }))
+    }
+    if (pieza && jueguito) {
+      setCopyPieza((prev) => {
+        if (!prev) {
+          console.log('inicializamos copia de pieza', pieza)
+          return pieza
+        }
+        return prev
+      })
+      disparador(tableroMatrix)
+    }
+    return()=>{}
+  }, [pieza, jueguito, tableroMatrix])
+
+  async function disparador(tablas: number[][]) {
+    
+    let veces = 0.3
+    if (pieza && copyPieza) {
+      await goDown(tablas, veces)
+      return
+    }
+    console.log('esto ocurre cada vez que se renueva')  
+    return setTableroMatrix(tableroMatrix.slice())
+  }
+
+  async function goDown(tablas: number[][], veces: number) {
+    if (tablas[0].some(el=> el===1)) {
+      const index1 = tablas[0].indexOf(1)
+      if (tablas[1][index1] === 1) {
+        dispatch(startEndGame(jueguito))
+        setTableroMatrix(Array(20).fill(0).map(() => Array(10).fill(0)))
+        return alert('GAME OVER')
+      }
+    }
+    let esperame = setTimeout(() => {
+      if (!copyPieza) {
+        return console.log('chau!')
+      }
+      setCopyPieza((prevState) => {
+        if(!prevState) return null
+        return { ...prevState, x: prevState.x + 1 }
+      })
+      if (copyPieza.x == 20 || tablas[copyPieza.x][copyPieza.y] == 1) {
+        dispatch(nextTetra({ playing: jueguito, currentTetraedrum: { x: 1, y: 1 }, nextTetraedrum: { x: 0, y: 5 } }))
+        setCopyPieza(null)
+        return 
+      }
+      if (copyPieza && tablas[copyPieza.x][copyPieza.y] == 0 && copyPieza.x < 20 && copyPieza.y < 10) {
+        setTableroMatrix(prev => {
+          if (!pieza) {
+           return prev
+          }
+          const copyMatrix = prev.slice()
+          if(copyPieza.x!==0){copyMatrix[copyPieza.x-1][copyPieza.y] = 0}
+          copyMatrix[copyPieza.x][copyPieza.y] = 1
+          return copyMatrix.slice()
+      })
+      }
+      clearTimeout(esperame)
+    },veces*45)
+    }
+
+  
+  var startClicked = document.getElementById("event-start");
+  startClicked?.addEventListener('upkey', popas)
+  function popas() {
+    console.log('clickeaste')
+    document.addEventListener('upkey', (e) => {
+      console.log(`evento ${e.type}`)
+    })
+  }
+
+  
   return (
-    <main className={styles.main}>
-      <div className={styles.description}>
-        <p>
-          Get started by editing&nbsp;
-          <code className={styles.code}>src/app/page.tsx</code>
-        </p>
-        <div>
-          <a
-            href="https://vercel.com?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            By{" "}
-            <Image
-              src="/vercel.svg"
-              alt="Vercel Logo"
-              className={styles.vercelLogo}
-              width={100}
-              height={24}
-              priority
-            />
-          </a>
-        </div>
-      </div>
+    <div style={{display:'flex', alignItems:'center', flexDirection:'row', gap:'1px', flexWrap:'wrap', maxWidth:'22em'}}>
+      {!jueguito ? <h1 id="event-start" className={styles['starter-text']} onClick={() => {dispatch(startEndGame(jueguito))}}>Press here to start playing</h1> : null}
+      {tableroMatrix && tableroMatrix.map((el, index) => {
+        const tot = el as any[]
+        return tot.map((pip, ses) => {
+          return pip === 0 ? <div style={ {fontSize:'2em'}} key={ses}>🟨</div> : <div style={ {fontSize:'2em'}}  key={ses}>🟦</div> 
+        })
+      })}
+      
 
-      <div className={styles.center}>
-        <Image
-          className={styles.logo}
-          src="/next.svg"
-          alt="Next.js Logo"
-          width={180}
-          height={37}
-          priority
-        />
-      </div>
-
-      <div className={styles.grid}>
-        <a
-          href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          className={styles.card}
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <h2>
-            Docs <span>-&gt;</span>
-          </h2>
-          <p>Find in-depth information about Next.js features and API.</p>
-        </a>
-
-        <a
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          className={styles.card}
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <h2>
-            Learn <span>-&gt;</span>
-          </h2>
-          <p>Learn about Next.js in an interactive course with&nbsp;quizzes!</p>
-        </a>
-
-        <a
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          className={styles.card}
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <h2>
-            Templates <span>-&gt;</span>
-          </h2>
-          <p>Explore starter templates for Next.js.</p>
-        </a>
-
-        <a
-          href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          className={styles.card}
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <h2>
-            Deploy <span>-&gt;</span>
-          </h2>
-          <p>
-            Instantly deploy your Next.js site to a shareable URL with Vercel.
-          </p>
-        </a>
-      </div>
-    </main>
+     
+    </div>
   );
 }
