@@ -1,4 +1,4 @@
-import { tetras } from "@/redux/actions/piezasSlice";
+import { tetras } from "@/redux/actions/piecesSlice";
 
 abstract class AbstractClass {
     constructor() {

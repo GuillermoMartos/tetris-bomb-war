@@ -1,5 +1,5 @@
 import { configureStore } from "@reduxjs/toolkit";
-import piezasReducer from './actions/piezasSlice'
+import piezasReducer from './actions/piecesSlice'
 
 
 export const store = configureStore({

@@ -1,7 +1,7 @@
 "use client";
 import { UseAppDispatch, useAppSelector } from "@/redux/hooks";
 import styles from "./page.module.css";
-import { startEndGame, nextTetra, tetras } from "@/redux/actions/piezasSlice";
+import { startEndGame, nextTetra, tetras } from "@/redux/actions/piecesSlice";
 import { useEffect, useRef, useState } from "react";
 import {
   bucketIndex,
@@ -15,17 +15,17 @@ interface changeY {
 }
 
 export default function Home() {
-  const initialSpeed = 80;
-  const jueguito = useAppSelector((state) => state.playing);
+  const initialSpeed = 100;
+  const isPlaying = useAppSelector((state) => state.playing);
   const dispatch = UseAppDispatch();
-  var pieza = useAppSelector((s) => s.nextTetraedrum);
-  const [copyPieza, setCopyPieza] = useState<null | tetras>(null);
+  var actualPiece = useAppSelector((s) => s.nextTetraedrum);
+  const [copyPiece, setcopyPiece] = useState<null | tetras>(null);
   const [score, setScore] = useState(0);
   const [specialClock, setSpecialClock] = useState(0);
   const [bucketsIndexs, setBucketsIndexs] = useState<bucketIndex>();
   const [maxScore, setMaxScore] = useState(0);
   const [speed, setSpeed] = useState(initialSpeed);
-  const [tableroMatrix, setTableroMatrix] = useState(
+  const [boardMatrix, setboardMatrix] = useState(
     Array(20)
       .fill(0)
       .map(() => Array(10).fill(0))
@@ -33,7 +33,9 @@ export default function Home() {
   let changeMovementRef = useRef(false);
   let busyMovementRef = useRef(false);
   let cleanBucketsRef = useRef(false);
+  let disableKeyboardMovementsRef = useRef(false);
 
+  // special buckets clock appear/disapear
   useEffect(() => {
     if (cleanBucketsRef.current) {
       const intervalId = setInterval(() => {
@@ -47,14 +49,13 @@ export default function Home() {
           }
         });
       }, 1000);
-
-      // Cleanup function to clear the interval when component unmounts or specialClock changes
       return () => clearInterval(intervalId);
     }
   }, [specialClock]);
 
+  // read every speed time to set matrixBoard each time
   useEffect(() => {
-    if (!pieza && jueguito) {
+    if (!actualPiece && isPlaying) {
       dispatch(
         nextTetra({
           playing: true,
@@ -62,62 +63,65 @@ export default function Home() {
           nextTetraedrum: { x: 0, y: 4 },
         })
       );
+      return;
     }
     function handleKeyboardCommands(event: KeyboardEvent) {
       if (event.code == "Enter") {
-        dispatch(startEndGame(jueguito));
+        dispatch(startEndGame(isPlaying));
       }
-      // Lógica para mover la pieza según la tecla presionada
-      if (event.code === "ArrowLeft" && copyPieza && !busyMovementRef.current) {
-        // cambiar la referencia de mover la pieza previene thriggerear disparador dos veces
+      if (disableKeyboardMovementsRef.current) {
+        disableKeyboardMovementsRef.current = false;
+        return;
+      }
+      // actualPiece right or left moving from keyboard
+      if (event.code === "ArrowLeft" && copyPiece && !busyMovementRef.current) {
+        // moving the piece change references so shooter() won't thrigger twice
         changeMovementRef.current = !changeMovementRef.current;
         busyMovementRef.current = !busyMovementRef.current;
-        if (pieza && jueguito) {
+        if (actualPiece && isPlaying) {
           const changer: changeY = { right: false, left: true };
-          disparador(tableroMatrix, changer);
+          shooter(boardMatrix, changer);
         }
       } else if (
         event.code === "ArrowRight" &&
-        copyPieza &&
+        copyPiece &&
         !busyMovementRef.current
       ) {
         busyMovementRef.current = !busyMovementRef.current;
         changeMovementRef.current = !changeMovementRef.current;
         const changer: changeY = { right: true, left: false };
-        disparador(tableroMatrix, changer);
+        shooter(boardMatrix, changer);
       }
     }
     window.addEventListener("keydown", handleKeyboardCommands);
 
-    if (pieza && jueguito && !changeMovementRef.current) {
-      setCopyPieza((prev) => {
+    // this will thrigger shooter each speed time for pieces to go down
+    if (actualPiece && isPlaying && !changeMovementRef.current) {
+      setcopyPiece((prev) => {
         if (!prev) {
-          return pieza;
+          return actualPiece;
         }
         return prev;
       });
-      disparador(tableroMatrix);
+      shooter(boardMatrix);
     }
     return () => {
       window.removeEventListener("keydown", handleKeyboardCommands);
     };
-  }, [pieza, jueguito, tableroMatrix]);
+  }, [actualPiece, isPlaying, boardMatrix]);
 
-  async function disparador(tablas: number[][], changeY?: changeY) {
-    if (pieza && copyPieza) {
-      await goDown(tablas, speed, changeY);
-      setScore(score + 0.3);
-      return;
-    }
-    return setTableroMatrix(tableroMatrix.slice());
+  async function shooter(tablas: number[][], changeY?: changeY) {
+    await goDown(tablas, speed, changeY);
+    setScore(score + 0.3);
+    return;
   }
 
   async function goDown(tablas: number[][], speed: number, changeY?: changeY) {
     if (tablas[0].some((el) => el === 1)) {
       const index1 = tablas[0].indexOf(1);
       if (tablas[1][index1] === 1) {
-        dispatch(startEndGame(jueguito));
-        setTableroMatrix(
+        dispatch(startEndGame(isPlaying));
+        setboardMatrix(
           Array(20)
             .fill(0)
             .map(() => Array(10).fill(0))
@@ -125,26 +129,26 @@ export default function Home() {
         if (score > maxScore) {
           setMaxScore(score);
         }
-        pieza = null;
+        actualPiece = null;
         setSpeed(initialSpeed);
         return alert("GAME OVER");
       }
     }
     let esperame = setTimeout(() => {
-      if (!copyPieza) {
-        return;
+      if (!copyPiece) {
+        return setboardMatrix((prev) => prev.slice());
       }
 
-      // la piezaCopy con que manejamos la dinamica de movimiento para abajo lee primero si tiene que moverse izq/der
-      if (changeMovementRef.current && copyPieza && changeY) {
+      // la actualPieceCopy con que manejamos la dinamica de movimiento para abajo lee primero si tiene que moverse izq/der
+      if (changeMovementRef.current && copyPiece && changeY) {
         // no permite moverse fuera de los límites
         if (
-          (copyPieza.y === 0 && changeY.left) ||
-          (copyPieza.y === 9 && changeY.right)
+          (copyPiece.y === 0 && changeY.left) ||
+          (copyPiece.y === 9 && changeY.right)
         ) {
           changeMovementRef.current = !changeMovementRef.current;
           busyMovementRef.current = false;
-          return setTableroMatrix((prev) => {
+          return setboardMatrix((prev) => {
             if (!cleanBucketsRef.current && bucketsIndexs) {
               setBucketsIndexs(undefined);
               return removeBuckets(prev, bucketsIndexs).slice();
@@ -152,27 +156,33 @@ export default function Home() {
             return prev.slice();
           });
         }
+        if (copyPiece.x < 18) {
+          if (tablas[copyPiece.x + 1][copyPiece.y] !== 0) {
+            return setboardMatrix((prev) => prev);
+          }
+        }
         if (
-          copyPieza &&
-          tablas[copyPieza.x][
-            changeY.left ? copyPieza.y - 1 : copyPieza.y + 1
+          copyPiece &&
+          tablas[copyPiece.x][
+            changeY.left ? copyPiece.y - 1 : copyPiece.y + 1
           ] == 0
         ) {
-          const segundoCopyPieza = { ...copyPieza };
-          setCopyPieza((prev) => {
+          const secondCopyPiece = { ...copyPiece };
+          setcopyPiece((prev) => {
             if (prev)
               return { y: changeY.left ? prev.y - 1 : prev.y + 1, x: prev.x };
             return prev;
           });
-          busyMovementRef.current = false;
-          changeMovementRef.current = !changeMovementRef.current;
-          setTableroMatrix((prev) => {
+
+          setboardMatrix((prev) => {
             let copyMatrix = prev.slice();
+            if ((copyMatrix[secondCopyPiece.x][secondCopyPiece.y] = 1)) {
+            }
             // borrado del anterior casillero ocupado
-            copyMatrix[segundoCopyPieza.x][segundoCopyPieza.y] = 0;
+            copyMatrix[secondCopyPiece.x][secondCopyPiece.y] = 0;
             // pintado del nuevo casillero ojo, acá vamos a mirar también que no estemos en el borde ya del eje Y
-            copyMatrix[segundoCopyPieza.x][
-              changeY.left ? segundoCopyPieza.y - 1 : segundoCopyPieza.y + 1
+            copyMatrix[secondCopyPiece.x][
+              changeY.left ? secondCopyPiece.y - 1 : secondCopyPiece.y + 1
             ] = 1;
             if (!cleanBucketsRef.current && bucketsIndexs) {
               setBucketsIndexs(undefined);
@@ -180,6 +190,8 @@ export default function Home() {
             }
             return copyMatrix.slice();
           });
+          busyMovementRef.current = false;
+          changeMovementRef.current = !changeMovementRef.current;
 
           return;
         }
@@ -187,24 +199,25 @@ export default function Home() {
         changeMovementRef.current = !changeMovementRef.current;
         return dispatch(
           nextTetra({
-            playing: jueguito,
-            currentTetraedrum: { x: copyPieza.x, y: copyPieza.y },
-            nextTetraedrum: { x: copyPieza.x, y: copyPieza.y },
+            playing: isPlaying,
+            currentTetraedrum: { x: copyPiece.x, y: copyPiece.y },
+            nextTetraedrum: { x: copyPiece.x, y: copyPiece.y },
           })
         );
       }
 
-      if (copyPieza.x < 19) {
-        setCopyPieza((prevState) => {
+      if (copyPiece.x < 19) {
+        setcopyPiece((prevState) => {
           if (!prevState) return null;
           return { ...prevState, x: prevState.x + 1 };
         });
       }
 
-      //pide pieza nueva cuando la anterior ya cayó
-      if (copyPieza.x == 20 || tablas[copyPieza.x][copyPieza.y] == 1) {
+      //pide actualPiece nueva cuando la anterior ya cayó
+      if (copyPiece.x == 20 || tablas[copyPiece.x][copyPiece.y] == 1) {
+        disableKeyboardMovementsRef.current = true;
         // check linea completa para borrado
-        setTableroMatrix((prev) => {
+        setboardMatrix((prev) => {
           let copyMatrix = prev.slice();
           for (let index = 0; index < copyMatrix.length; index++) {
             if (!copyMatrix[index].some((el) => el === 0)) {
@@ -229,30 +242,35 @@ export default function Home() {
         });
         dispatch(
           nextTetra({
-            playing: jueguito,
+            playing: isPlaying,
             currentTetraedrum: { x: 1, y: 1 },
             nextTetraedrum: { x: 0, y: Math.floor(Math.random() * 10) },
           })
         );
-        setCopyPieza(null);
+        setcopyPiece(null);
+        disableKeyboardMovementsRef.current = false;
         return;
       }
 
+      if (copyPiece.x < 18 && tablas[copyPiece.x + 2][copyPiece.y] == 1) {
+        disableKeyboardMovementsRef.current = true;
+      }
+
       //lógica de vaciar o llenar cuadros del tablero en bajada
-      if (copyPieza && tablas[copyPieza.x][copyPieza.y] == 0) {
-        setTableroMatrix((prev) => {
-          if (!pieza) {
+      if (copyPiece && tablas[copyPiece.x][copyPiece.y] == 0) {
+        setboardMatrix((prev) => {
+          if (!actualPiece) {
             return prev;
           }
           const copyMatrix = prev.slice();
 
           // limpia los casilleros donde estuvo el bloque, ya que avanza hacia abajo
-          if (copyPieza.x !== 0) {
-            copyMatrix[copyPieza.x - 1][copyPieza.y] = 0;
+          if (copyPiece.x !== 0) {
+            copyMatrix[copyPiece.x - 1][copyPiece.y] = 0;
           }
 
-          // pinta los casilleros que ocupa la pieza en su movimiento
-          copyMatrix[copyPieza.x][copyPieza.y] = 1;
+          // pinta los casilleros que ocupa la actualPiece en su movimiento
+          copyMatrix[copyPiece.x][copyPiece.y] = 1;
           if (!cleanBucketsRef.current && bucketsIndexs) {
             setBucketsIndexs(undefined);
             return removeBuckets(copyMatrix, bucketsIndexs).slice();
@@ -261,29 +279,29 @@ export default function Home() {
         });
       }
 
-      if (copyPieza && tablas[copyPieza.x][copyPieza.y] == 2) {
+      if (copyPiece && tablas[copyPiece.x][copyPiece.y] == 2) {
         setScore(score + 20);
-        setTableroMatrix((prev) => {
-          if (!pieza) {
+        setboardMatrix((prev) => {
+          if (!actualPiece) {
             return prev;
           }
           const copyMatrix = prev.slice();
           // limpia los casilleros donde estuvo el bloque, ya que avanza hacia abajo
-          if (copyPieza.x !== 0) {
-            copyMatrix[copyPieza.x - 1][copyPieza.y] = 0;
+          if (copyPiece.x !== 0) {
+            copyMatrix[copyPiece.x - 1][copyPiece.y] = 0;
           }
           // saca el balde
-          copyMatrix[copyPieza.x][copyPieza.y] = 0;
+          copyMatrix[copyPiece.x][copyPiece.y] = 0;
           return copyMatrix.slice();
         });
         dispatch(
           nextTetra({
-            playing: jueguito,
+            playing: isPlaying,
             currentTetraedrum: { x: 1, y: 1 },
             nextTetraedrum: { x: 0, y: Math.floor(Math.random() * 10) },
           })
         );
-        setCopyPieza(null);
+        setcopyPiece(null);
       }
       clearTimeout(esperame);
     }, speed);
@@ -300,12 +318,12 @@ export default function Home() {
         maxWidth: "22em",
       }}
     >
-      {!jueguito ? (
+      {!isPlaying ? (
         <h1
           id="event-start"
           className={styles["starter-text"]}
           onClick={(e) => {
-            dispatch(startEndGame(jueguito));
+            dispatch(startEndGame(isPlaying));
           }}
         >
           Press Enter or click here to play/pause
@@ -318,7 +336,7 @@ export default function Home() {
             id="event-start"
             className={styles["starter-text"]}
             onClick={(e) => {
-              dispatch(startEndGame(jueguito));
+              dispatch(startEndGame(isPlaying));
             }}
           >
             Press Enter or click here to play/pause
@@ -328,8 +346,8 @@ export default function Home() {
           {specialClock ? `Crazy Buckets timer! ${specialClock}` : null}
         </div>
       )}
-      {tableroMatrix &&
-        tableroMatrix.map((el, index) => {
+      {boardMatrix &&
+        boardMatrix.map((el, index) => {
           const tot = el as any[];
           return tot.map((pip, ses) => {
             if (pip === 0) {
