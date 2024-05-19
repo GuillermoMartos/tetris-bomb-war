@@ -1,5 +1,4 @@
 import { createSlice, PayloadAction } from "@reduxjs/toolkit";
-import { act } from "react-dom/test-utils";
 
 export type tetras={x:number, y:number}
 
