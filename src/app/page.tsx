@@ -8,6 +8,7 @@ import {
   randomEmptySpacesChanger,
   removeBuckets,
 } from "./helpers/helpers";
+import Board from "./components/board";
 
 interface changeY {
   right: boolean;
@@ -308,16 +309,7 @@ export default function Home() {
   }
 
   return (
-    <div
-      style={{
-        display: "flex",
-        alignItems: "center",
-        flexDirection: "row",
-        gap: "1px",
-        flexWrap: "wrap",
-        maxWidth: "22em",
-      }}
-    >
+    <div>
       {!isPlaying ? (
         <h1
           id="event-start"
@@ -346,32 +338,7 @@ export default function Home() {
           {specialClock ? `Crazy Buckets timer! ${specialClock}` : null}
         </div>
       )}
-      {boardMatrix &&
-        boardMatrix.map((el, index) => {
-          const tot = el as any[];
-          return tot.map((pip, ses) => {
-            if (pip === 0) {
-              return (
-                <div style={{ fontSize: "2em" }} key={ses}>
-                  🟨
-                </div>
-              );
-            }
-            if (pip === 1) {
-              return (
-                <div style={{ fontSize: "2em" }} key={ses}>
-                  ⬛️
-                </div>
-              );
-            } else {
-              return (
-                <div style={{ fontSize: "2em" }} key={ses}>
-                  🪣
-                </div>
-              );
-            }
-          });
-        })}
+      {boardMatrix ? <Board boardMatrix={boardMatrix}></Board> : null}
     </div>
   );
 }
