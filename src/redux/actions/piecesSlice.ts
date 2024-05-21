@@ -1,43 +1,73 @@
+import { assignNewRandomPieceShape, matrix } from "@/app/shapes/shapes";
 import { createSlice, PayloadAction } from "@reduxjs/toolkit";
 
-export type tetras={x:number, y:number}
+export type tetraedrumPosition = {
+  x: number;
+  y: number;
+};
 
-type miEstadito = {
-    currentTetraedrum: null | tetras
-    nextTetraedrum: null | tetras
-    playing: boolean
-    
-}
+export type tetraedrum = {
+  position: tetraedrumPosition;
+  shape: matrix;
+};
 
-const initialState:miEstadito = {
-    currentTetraedrum: null,
-    nextTetraedrum: null,
-    playing: false
-}
+type myState = {
+  currentTetraedrum: null | tetraedrum;
+  nextTetraedrum: null | tetraedrum;
+  playing: boolean;
+};
+
+const initialState: myState = {
+  currentTetraedrum: null,
+  nextTetraedrum: null,
+  playing: false,
+};
 
 export const piezasSlice = createSlice({
-    name: 'piezas',
-    initialState,
-    reducers: {
-        startEndGame: (state, action:PayloadAction<boolean>) => {
-            return {
-                ...state,
-             playing:!state.playing   
-            }
+  name: "pieces reducer",
+  initialState,
+  reducers: {
+    playPause: (state, action: PayloadAction<boolean>) => {
+      return {
+        ...state,
+        playing: !action.payload,
+      };
+    },
+    startEndGame: (state, action: PayloadAction<boolean>) => {
+      if (!action.payload) {
+        return {
+          ...state,
+          playing: !action.payload,
+          nextTetraedrum: {
+            position: { x: 0, y: 5 },
+            shape: assignNewRandomPieceShape(),
+          },
+          currentTetraedrum: {
+            position: { x: 0, y: 5 },
+            shape: assignNewRandomPieceShape(),
+          },
+        };
+      }
+      return {
+        playing: !action.payload,
+        currentTetraedrum: null,
+        nextTetraedrum: null,
+      };
+    },
+    nextTetra: (state, action: PayloadAction<tetraedrum>) => {
+      console.log(action.payload);
+      return {
+        ...state,
+        playing: state.playing,
+        nextTetraedrum: {
+          position: { x: 0, y: 5 },
+          shape: assignNewRandomPieceShape(),
         },
-        nextTetra: (state, action: PayloadAction<miEstadito>) => {
-            if (action.payload.nextTetraedrum) {
-                return {
-                    ...state,
-                    nextTetraedrum: action.payload.nextTetraedrum
-                }
-            }
-            return {
-                ...state
-            }
-        }
-    }
-})
+        currentTetraedrum: action.payload,
+      };
+    },
+  },
+});
 
-export const { startEndGame, nextTetra } = piezasSlice.actions
-export default piezasSlice.reducer
+export const { startEndGame, nextTetra, playPause } = piezasSlice.actions;
+export default piezasSlice.reducer;

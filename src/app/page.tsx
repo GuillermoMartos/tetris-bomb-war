@@ -1,67 +1,51 @@
 "use client";
 import { UseAppDispatch, useAppSelector } from "@/redux/hooks";
 import styles from "./page.module.css";
-import { startEndGame, nextTetra, tetras } from "@/redux/actions/piecesSlice";
+import {
+  startEndGame,
+  nextTetra,
+  tetraedrum,
+} from "@/redux/actions/piecesSlice";
 import { useEffect, useRef, useState } from "react";
 import {
-  bucketIndex,
-  randomEmptySpacesChanger,
-  removeBuckets,
+  changeY,
+  changePositionsAndUpdateBoard,
+  checkGameOver,
 } from "./helpers/helpers";
 import Board from "./components/board";
-
-interface changeY {
-  right: boolean;
-  left: boolean;
-}
+import {
+  assignNewRandomPieceShape,
+  matrix,
+  pieceRotator,
+} from "./shapes/shapes";
 
 export default function Home() {
-  const initialSpeed = 100;
+  const initialSpeed = 150;
   const isPlaying = useAppSelector((state) => state.playing);
   const dispatch = UseAppDispatch();
-  var actualPiece = useAppSelector((s) => s.nextTetraedrum);
-  const [copyPiece, setcopyPiece] = useState<null | tetras>(null);
-  const [score, setScore] = useState(0);
-  const [specialClock, setSpecialClock] = useState(0);
-  const [bucketsIndexs, setBucketsIndexs] = useState<bucketIndex>();
-  const [maxScore, setMaxScore] = useState(0);
-  const [speed, setSpeed] = useState(initialSpeed);
-  const [boardMatrix, setboardMatrix] = useState(
+  var currentPiece = useAppSelector((s) => s.currentTetraedrum);
+  var nextPiece = useAppSelector((s) => s.nextTetraedrum);
+  const [copyPiece, setcopyPiece] = useState<null | tetraedrum>(null);
+  const [score, setScore] = useState<number>(0);
+  const [maxScore, setMaxScore] = useState<number>(0);
+  const [speed, setSpeed] = useState<number>(initialSpeed);
+  const [boardMatrix, setboardMatrix] = useState<matrix>(
     Array(20)
       .fill(0)
       .map(() => Array(10).fill(0))
   );
   let changeMovementRef = useRef(false);
   let busyMovementRef = useRef(false);
-  let cleanBucketsRef = useRef(false);
   let disableKeyboardMovementsRef = useRef(false);
-
-  // special buckets clock appear/disapear
-  useEffect(() => {
-    if (cleanBucketsRef.current) {
-      const intervalId = setInterval(() => {
-        setSpecialClock((prevClock) => {
-          if (prevClock > 0) {
-            return prevClock - 1;
-          } else {
-            cleanBucketsRef.current = false;
-            clearInterval(intervalId);
-            return 0;
-          }
-        });
-      }, 1000);
-      return () => clearInterval(intervalId);
-    }
-  }, [specialClock]);
 
   // read every speed time to set matrixBoard each time
   useEffect(() => {
-    if (!actualPiece && isPlaying) {
+    if (!currentPiece && isPlaying) {
+      console.log("queee!");
       dispatch(
         nextTetra({
-          playing: true,
-          currentTetraedrum: { x: 0, y: 0 },
-          nextTetraedrum: { x: 0, y: 4 },
+          position: { x: 0, y: 5 },
+          shape: assignNewRandomPieceShape(),
         })
       );
       return;
@@ -74,12 +58,12 @@ export default function Home() {
         disableKeyboardMovementsRef.current = false;
         return;
       }
-      // actualPiece right or left moving from keyboard
+      // currentPiece right or left moving from keyboard
       if (event.code === "ArrowLeft" && copyPiece && !busyMovementRef.current) {
         // moving the piece change references so shooter() won't thrigger twice
         changeMovementRef.current = !changeMovementRef.current;
         busyMovementRef.current = !busyMovementRef.current;
-        if (actualPiece && isPlaying) {
+        if (currentPiece && isPlaying) {
           const changer: changeY = { right: false, left: true };
           shooter(boardMatrix, changer);
         }
@@ -97,98 +81,110 @@ export default function Home() {
     window.addEventListener("keydown", handleKeyboardCommands);
 
     // this will thrigger shooter each speed time for pieces to go down
-    if (actualPiece && isPlaying && !changeMovementRef.current) {
-      setcopyPiece((prev) => {
-        if (!prev) {
-          return actualPiece;
-        }
-        return prev;
-      });
-      shooter(boardMatrix);
+    if (currentPiece && isPlaying && !changeMovementRef.current) {
+      const copyMatrix = boardMatrix.slice();
+      const [collisionHappened, boardToUpdate, newCopyPiece] =
+        changePositionsAndUpdateBoard(copyMatrix, copyPiece ?? currentPiece);
+      if (!collisionHappened) {
+        setcopyPiece(newCopyPiece);
+        shooter(boardToUpdate);
+      } else if (collisionHappened) {
+        shooter(boardToUpdate, undefined, collisionHappened);
+      }
     }
     return () => {
       window.removeEventListener("keydown", handleKeyboardCommands);
     };
-  }, [actualPiece, isPlaying, boardMatrix]);
+  }, [currentPiece, isPlaying, boardMatrix]);
 
-  async function shooter(tablas: number[][], changeY?: changeY) {
-    await goDown(tablas, speed, changeY);
+  async function shooter(
+    boardToUpdate: matrix,
+    changeY?: changeY,
+    collisionHappened?: boolean
+  ) {
+    await moveLoop(boardToUpdate, speed, changeY, collisionHappened);
     setScore(score + 0.3);
     return;
   }
 
-  async function goDown(tablas: number[][], speed: number, changeY?: changeY) {
-    if (tablas[0].some((el) => el === 1)) {
-      const index1 = tablas[0].indexOf(1);
-      if (tablas[1][index1] === 1) {
-        dispatch(startEndGame(isPlaying));
-        setboardMatrix(
-          Array(20)
-            .fill(0)
-            .map(() => Array(10).fill(0))
-        );
-        if (score > maxScore) {
-          setMaxScore(score);
-        }
-        actualPiece = null;
-        setSpeed(initialSpeed);
-        return alert("GAME OVER");
-      }
-    }
+  async function moveLoop(
+    boardToUpdate: matrix,
+    speed: number,
+    changeY?: changeY,
+    collisionHappened?: boolean
+  ) {
     let esperame = setTimeout(() => {
-      if (!copyPiece) {
-        return setboardMatrix((prev) => prev.slice());
+      // check colission for game over or new piece dispatch
+      if (collisionHappened) {
+        if (checkGameOver(boardToUpdate)) {
+          setcopyPiece(null);
+          return dispatch(startEndGame(isPlaying));
+        }
+        setcopyPiece(null);
+        return dispatch(
+          nextTetra({
+            position: { x: 0, y: 5 },
+            shape: assignNewRandomPieceShape(),
+          })
+        );
       }
-
-      // la actualPieceCopy con que manejamos la dinamica de movimiento para abajo lee primero si tiene que moverse izq/der
+      // la currentPieceCopy con que manejamos la dinamica de movimiento para abajo lee primero si tiene que moverse izq/der
       if (changeMovementRef.current && copyPiece && changeY) {
         // no permite moverse fuera de los límites
         if (
-          (copyPiece.y === 0 && changeY.left) ||
-          (copyPiece.y === 9 && changeY.right)
+          (copyPiece.position.y === 0 && changeY.left) ||
+          (copyPiece.position.y === 9 && changeY.right)
         ) {
           changeMovementRef.current = !changeMovementRef.current;
           busyMovementRef.current = false;
           return setboardMatrix((prev) => {
-            if (!cleanBucketsRef.current && bucketsIndexs) {
-              setBucketsIndexs(undefined);
-              return removeBuckets(prev, bucketsIndexs).slice();
-            }
             return prev.slice();
           });
         }
-        if (copyPiece.x < 18) {
-          if (tablas[copyPiece.x + 1][copyPiece.y] !== 0) {
+        if (copyPiece.position.x < 18) {
+          if (
+            boardToUpdate[copyPiece.position.x + 1][copyPiece.position.y] !== 0
+          ) {
             return setboardMatrix((prev) => prev);
           }
         }
         if (
           copyPiece &&
-          tablas[copyPiece.x][
-            changeY.left ? copyPiece.y - 1 : copyPiece.y + 1
+          boardToUpdate[copyPiece.position.x][
+            changeY.left ? copyPiece.position.y - 1 : copyPiece.position.y + 1
           ] == 0
         ) {
           const secondCopyPiece = { ...copyPiece };
           setcopyPiece((prev) => {
             if (prev)
-              return { y: changeY.left ? prev.y - 1 : prev.y + 1, x: prev.x };
+              return {
+                ...prev,
+                position: {
+                  y: changeY.left ? prev.position.y - 1 : prev.position.y + 1,
+                  x: prev.position.x,
+                },
+              };
             return prev;
           });
 
           setboardMatrix((prev) => {
             let copyMatrix = prev.slice();
-            if ((copyMatrix[secondCopyPiece.x][secondCopyPiece.y] = 1)) {
+            if (
+              (copyMatrix[secondCopyPiece.position.x][
+                secondCopyPiece.position.y
+              ] = 1)
+            ) {
             }
             // borrado del anterior casillero ocupado
-            copyMatrix[secondCopyPiece.x][secondCopyPiece.y] = 0;
+            copyMatrix[secondCopyPiece.position.x][
+              secondCopyPiece.position.y
+            ] = 0;
             // pintado del nuevo casillero ojo, acá vamos a mirar también que no estemos en el borde ya del eje Y
-            copyMatrix[secondCopyPiece.x][
-              changeY.left ? secondCopyPiece.y - 1 : secondCopyPiece.y + 1
+            copyMatrix[secondCopyPiece.position.x][
+              changeY.left
+                ? secondCopyPiece.position.y - 1
+                : secondCopyPiece.position.y + 1
             ] = 1;
-            if (!cleanBucketsRef.current && bucketsIndexs) {
-              setBucketsIndexs(undefined);
-              return removeBuckets(copyMatrix, bucketsIndexs).slice();
-            }
             return copyMatrix.slice();
           });
           busyMovementRef.current = false;
@@ -200,110 +196,19 @@ export default function Home() {
         changeMovementRef.current = !changeMovementRef.current;
         return dispatch(
           nextTetra({
-            playing: isPlaying,
-            currentTetraedrum: { x: copyPiece.x, y: copyPiece.y },
-            nextTetraedrum: { x: copyPiece.x, y: copyPiece.y },
+            position: {
+              x: copyPiece.position.x,
+              y: copyPiece.position.y,
+            },
+            shape: assignNewRandomPieceShape(),
           })
         );
       }
 
-      if (copyPiece.x < 19) {
-        setcopyPiece((prevState) => {
-          if (!prevState) return null;
-          return { ...prevState, x: prevState.x + 1 };
-        });
-      }
-
-      //pide actualPiece nueva cuando la anterior ya cayó
-      if (copyPiece.x == 20 || tablas[copyPiece.x][copyPiece.y] == 1) {
-        disableKeyboardMovementsRef.current = true;
-        // check linea completa para borrado
-        setboardMatrix((prev) => {
-          let copyMatrix = prev.slice();
-          for (let index = 0; index < copyMatrix.length; index++) {
-            if (!copyMatrix[index].some((el) => el === 0)) {
-              copyMatrix.splice(index, 1);
-              copyMatrix.unshift(Array(10).fill(0));
-              setScore((prev) => {
-                return prev + 50;
-              });
-              setSpeed((prev) => {
-                return prev * 0.95;
-              });
-              const [result, indexs] = randomEmptySpacesChanger(copyMatrix);
-              if (result && indexs) {
-                setBucketsIndexs(indexs);
-                setSpecialClock(10);
-                cleanBucketsRef.current = true;
-                return result.slice();
-              }
-            }
-          }
-          return prev.slice();
-        });
-        dispatch(
-          nextTetra({
-            playing: isPlaying,
-            currentTetraedrum: { x: 1, y: 1 },
-            nextTetraedrum: { x: 0, y: Math.floor(Math.random() * 10) },
-          })
-        );
-        setcopyPiece(null);
-        disableKeyboardMovementsRef.current = false;
-        return;
-      }
-
-      if (copyPiece.x < 18 && tablas[copyPiece.x + 2][copyPiece.y] == 1) {
-        disableKeyboardMovementsRef.current = true;
-      }
-
-      //lógica de vaciar o llenar cuadros del tablero en bajada
-      if (copyPiece && tablas[copyPiece.x][copyPiece.y] == 0) {
-        setboardMatrix((prev) => {
-          if (!actualPiece) {
-            return prev;
-          }
-          const copyMatrix = prev.slice();
-
-          // limpia los casilleros donde estuvo el bloque, ya que avanza hacia abajo
-          if (copyPiece.x !== 0) {
-            copyMatrix[copyPiece.x - 1][copyPiece.y] = 0;
-          }
-
-          // pinta los casilleros que ocupa la actualPiece en su movimiento
-          copyMatrix[copyPiece.x][copyPiece.y] = 1;
-          if (!cleanBucketsRef.current && bucketsIndexs) {
-            setBucketsIndexs(undefined);
-            return removeBuckets(copyMatrix, bucketsIndexs).slice();
-          }
-          return copyMatrix.slice();
-        });
-      }
-
-      if (copyPiece && tablas[copyPiece.x][copyPiece.y] == 2) {
-        setScore(score + 20);
-        setboardMatrix((prev) => {
-          if (!actualPiece) {
-            return prev;
-          }
-          const copyMatrix = prev.slice();
-          // limpia los casilleros donde estuvo el bloque, ya que avanza hacia abajo
-          if (copyPiece.x !== 0) {
-            copyMatrix[copyPiece.x - 1][copyPiece.y] = 0;
-          }
-          // saca el balde
-          copyMatrix[copyPiece.x][copyPiece.y] = 0;
-          return copyMatrix.slice();
-        });
-        dispatch(
-          nextTetra({
-            playing: isPlaying,
-            currentTetraedrum: { x: 1, y: 1 },
-            nextTetraedrum: { x: 0, y: Math.floor(Math.random() * 10) },
-          })
-        );
-        setcopyPiece(null);
-      }
+      // we update the matrix board inside the timeout with our dynamic speed waiting
+      setboardMatrix(() => {
+        return boardToUpdate.slice();
+      });
       clearTimeout(esperame);
     }, speed);
   }
@@ -335,7 +240,6 @@ export default function Home() {
           </h1>
           <h1>Your score: {score.toFixed(0)}</h1>
           {maxScore ? <h1>Max score: {maxScore.toFixed(0)}</h1> : null}
-          {specialClock ? `Crazy Buckets timer! ${specialClock}` : null}
         </div>
       )}
       {boardMatrix ? <Board boardMatrix={boardMatrix}></Board> : null}

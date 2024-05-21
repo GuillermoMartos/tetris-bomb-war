@@ -33,7 +33,7 @@ export default function Board({ boardMatrix }: { boardMatrix: number[][] }) {
           } else {
             return (
               <div style={{ fontSize: "2em" }} key={ind}>
-                🪣
+                💣
               </div>
             );
           }
