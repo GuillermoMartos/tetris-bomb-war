@@ -6,25 +6,52 @@ export interface changeY {
   left: boolean;
 }
 
+export type collisionHappened = {
+  collision: boolean;
+  gameOver: boolean;
+  askNewPiece: boolean;
+};
+
 export function changePositionsAndUpdateBoard(
   copyBoard: matrix,
   piece: tetraedrum
-): [boolean, matrix, tetraedrum] {
+): [collisionHappened, matrix, tetraedrum] {
   let newPiece: tetraedrum = {
     position: { ...piece.position, x: piece.position.x + 1 },
     shape: piece.shape.slice(),
   };
+  // deep copy, the array is nested, so a simple array slice won't work
+  const originalCopyBoard: matrix = JSON.parse(JSON.stringify(copyBoard));
   for (let xIndex = piece.shape.length - 1; xIndex !== -1; xIndex--) {
     for (let [yindex, pieceOccupation] of piece.shape[xIndex].entries()) {
+      // check bottom line collision and ask for new piece
       if (xIndex + piece.position.x === 20) {
-        return [true, copyBoard, piece];
+        return [
+          { collision: true, askNewPiece: true, gameOver: false },
+          copyBoard,
+          piece,
+        ];
       }
-      /* if (
+      // check collision with other piece
+      if (
         pieceOccupation !== 0 &&
-        copyBoard[xIndex + piece.position.x][piece.position.y + yindex] !== 0 
+        copyBoard[xIndex + piece.position.x][piece.position.y + yindex] !== 0
       ) {
-          
-      } */
+        // if with hit other piece in piece position 0, it's game over
+        if (piece.position.x === 0) {
+          return [
+            { collision: true, askNewPiece: false, gameOver: true },
+            originalCopyBoard,
+            piece,
+          ];
+        }
+        // if we hit other piece, we ask for a new piece
+        return [
+          { collision: true, askNewPiece: true, gameOver: false },
+          originalCopyBoard,
+          piece,
+        ];
+      }
       if (
         pieceOccupation !== 0 &&
         copyBoard[xIndex + piece.position.x][piece.position.y + yindex] === 0
@@ -37,7 +64,11 @@ export function changePositionsAndUpdateBoard(
       }
     }
   }
-  return [false, copyBoard, newPiece];
+  return [
+    { collision: false, askNewPiece: false, gameOver: false },
+    copyBoard,
+    newPiece,
+  ];
 }
 
 export function checkGameOver(copyMatrix: matrix): boolean {

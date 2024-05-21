@@ -11,6 +11,7 @@ import {
   changeY,
   changePositionsAndUpdateBoard,
   checkGameOver,
+  collisionHappened,
 } from "./helpers/helpers";
 import Board from "./components/board";
 import {
@@ -82,14 +83,15 @@ export default function Home() {
 
     // this will thrigger shooter each speed time for pieces to go down
     if (currentPiece && isPlaying && !changeMovementRef.current) {
-      const copyMatrix = boardMatrix.slice();
+      // deep copy, the array is nested, so a simple array slice won't work
+      const copyMatrix: matrix = JSON.parse(JSON.stringify(boardMatrix));
       const [collisionHappened, boardToUpdate, newCopyPiece] =
         changePositionsAndUpdateBoard(copyMatrix, copyPiece ?? currentPiece);
-      if (!collisionHappened) {
+      if (!collisionHappened.collision) {
         setcopyPiece(newCopyPiece);
         shooter(boardToUpdate);
-      } else if (collisionHappened) {
-        shooter(boardToUpdate, undefined, collisionHappened);
+      } else if (collisionHappened.collision) {
+        shooter(copyMatrix, undefined, collisionHappened);
       }
     }
     return () => {
@@ -100,7 +102,7 @@ export default function Home() {
   async function shooter(
     boardToUpdate: matrix,
     changeY?: changeY,
-    collisionHappened?: boolean
+    collisionHappened?: collisionHappened
   ) {
     await moveLoop(boardToUpdate, speed, changeY, collisionHappened);
     setScore(score + 0.3);
@@ -111,13 +113,14 @@ export default function Home() {
     boardToUpdate: matrix,
     speed: number,
     changeY?: changeY,
-    collisionHappened?: boolean
+    collisionHappened?: collisionHappened
   ) {
     let esperame = setTimeout(() => {
       // check colission for game over or new piece dispatch
-      if (collisionHappened) {
-        if (checkGameOver(boardToUpdate)) {
+      if (collisionHappened?.collision) {
+        if (collisionHappened.gameOver) {
           setcopyPiece(null);
+          alert("Game Over");
           return dispatch(startEndGame(isPlaying));
         }
         setcopyPiece(null);
