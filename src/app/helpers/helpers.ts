@@ -1,11 +1,11 @@
 import { tetraedrum, tetraedrumPosition } from "@/redux/actions/piecesSlice";
-import { matrix } from "../shapes/shapes";
+import { matrix, pieceRotatorCounterClockwise } from "../shapes/shapes";
 
-export interface changeY {
+export interface changePieceIndicator {
   right: boolean;
   left: boolean;
+  rotate: boolean;
 }
-
 export type collisionHappened = {
   collision: boolean;
   gameOver: boolean;
@@ -16,7 +16,7 @@ export function changePositionsAndUpdateBoard(
   copyBoard: matrix,
   piece: tetraedrum
 ): [collisionHappened, matrix, tetraedrum] {
-  let newPiece: tetraedrum = {
+  const newPiece: tetraedrum = {
     position: { ...piece.position, x: piece.position.x + 1 },
     shape: piece.shape.slice(),
   };
@@ -41,7 +41,7 @@ export function changePositionsAndUpdateBoard(
         if (piece.position.x === 0) {
           return [
             { collision: true, askNewPiece: false, gameOver: true },
-            originalCopyBoard,
+            copyBoard,
             piece,
           ];
         }
@@ -71,40 +71,135 @@ export function changePositionsAndUpdateBoard(
   ];
 }
 
-export function checkGameOver(copyMatrix: matrix): boolean {
-  return copyMatrix[0].some((el) => el === 1);
-}
+export function checkKeyboardCommands(
+  board: matrix,
+  piece: tetraedrum,
+  changer: changePieceIndicator
+): [collisionHappened, matrix, tetraedrum] {
+  const newPiece: tetraedrum = {
+    position: {
+      x: piece.position.x - 1,
+      y: changer.rotate
+        ? piece.position.y
+        : changer.left
+        ? piece.position.y - 1
+        : piece.position.y + 1,
+    },
+    shape: piece.shape,
+  };
+  // deep copy, the array is nested, so a simple array slice won't work
+  const copyBoard: matrix = JSON.parse(JSON.stringify(board));
+  if (changer.left) {
+    for (let [xIndex, row] of piece.shape.entries()) {
+      for (let [yindex, pieceOccupation] of row.entries()) {
+        // check collision with other piece
+        if (
+          pieceOccupation !== 0 &&
+          board[newPiece.position.x + xIndex][newPiece.position.y + yindex] !==
+            0
+        ) {
+          // if we hit other piece, we ask for a new piece
+          return [
+            { collision: true, askNewPiece: true, gameOver: false },
+            copyBoard,
+            piece,
+          ];
+        }
+        // set new y position in the matrix and clean the past y position
+        if (pieceOccupation !== 0) {
+          board[newPiece.position.x + xIndex][newPiece.position.y + yindex] =
+            pieceOccupation;
+          board[newPiece.position.x + xIndex][
+            newPiece.position.y + yindex + 1
+          ] = 0;
+        }
+      }
+    }
+  } else if (changer.right) {
+    for (let [xIndex, row] of piece.shape.entries()) {
+      //for (let xIndex = piece.shape.length - 1; xIndex !== -1; xIndex--) {
+      for (let yindex = row.length - 1; yindex !== -1; yindex--) {
+        const pieceOccupation = row[yindex];
+        // check collision with other piece
+        if (
+          pieceOccupation !== 0 &&
+          board[newPiece.position.x + xIndex][newPiece.position.y + yindex] !==
+            0
+        ) {
+          // if we hit other piece, we ask for a new piece
+          return [
+            { collision: true, askNewPiece: true, gameOver: false },
+            copyBoard,
+            piece,
+          ];
+        }
+        // set new y position in the matrix and clean the past y position
+        if (pieceOccupation !== 0) {
+          board[newPiece.position.x + xIndex][newPiece.position.y + yindex] =
+            pieceOccupation;
+          board[newPiece.position.x + xIndex][
+            newPiece.position.y + yindex - 1
+          ] = 0;
+        }
+      }
+    }
+  } else if (changer.rotate) {
+    let pieceBeforeRotation: tetraedrum = {
+      position: { x: piece.position.x - 1, y: piece.position.y },
+      shape: pieceRotatorCounterClockwise(piece.shape),
+    };
+    let pieceRotatedCleanFromMatrix: matrix = JSON.parse(JSON.stringify(board));
+    for (let [xIndex, row] of pieceBeforeRotation.shape.entries()) {
+      for (let [yindex, pieceOccupation] of row.entries()) {
+        // clean the piece as it was before, so if we check no collision, we print the new rotated over this cleaned matrix
+        if (pieceOccupation !== 0) {
+          pieceRotatedCleanFromMatrix[pieceBeforeRotation.position.x + xIndex][
+            pieceBeforeRotation.position.y + yindex
+          ] = 0;
+        }
+      }
+    }
 
-//pide currentPiece nueva cuando la anterior ya cayó
-/* if (
-        copyPiece.position.x == 20 ||
-        boardToUpdate[copyPiece.position.x][copyPiece.position.y] == 1
-      ) {
-        disableKeyboardMovementsRef.current = true;
-        // check linea completa para borrado
-        setboardMatrix((prev) => {
-          let copyMatrix = prev.slice();
-          for (let index = 0; index < copyMatrix.length; index++) {
-            if (!copyMatrix[index].some((el) => el === 0)) {
-              copyMatrix.splice(index, 1);
-              copyMatrix.unshift(Array(10).fill(0));
-              setScore((prev) => {
-                return prev + 50;
-              });
-              setSpeed((prev) => {
-                return prev * 0.95;
-              });
-            }
+    try {
+      for (let [xIndex, row] of newPiece.shape.entries()) {
+        for (let [yindex, pieceOccupation] of row.entries()) {
+          // check collision with other piece
+          if (
+            pieceOccupation !== 0 &&
+            pieceRotatedCleanFromMatrix[piece.position.x + xIndex][
+              piece.position.y + yindex
+            ] !== 0
+          ) {
+            // if we hit other piece, we don't allow the rotation
+            return [
+              { collision: false, askNewPiece: true, gameOver: false },
+              copyBoard,
+              pieceBeforeRotation,
+            ];
           }
-          return prev.slice();
-        });
-        dispatch(
-          nextTetra({
-            position: { x: 0, y: 5  },
-            shape: assignNewRandomPieceShape(),
-          })
-        );
-        setcopyPiece(null);
-        disableKeyboardMovementsRef.current = false;
-        return;
-      } */
+          // set new y position in the previous cleaned matrix
+          if (pieceOccupation !== 0) {
+            pieceRotatedCleanFromMatrix[newPiece.position.x + xIndex][
+              newPiece.position.y + yindex
+            ] = pieceOccupation;
+            pieceRotatedCleanFromMatrix[newPiece.position.x + xIndex][
+              newPiece.position.y + yindex + 1
+            ] = 0;
+          }
+        }
+      }
+    } catch (err) {
+      console.log("error", err);
+    }
+    return [
+      { collision: false, askNewPiece: false, gameOver: false },
+      pieceRotatedCleanFromMatrix,
+      newPiece,
+    ];
+  }
+  return [
+    { collision: false, askNewPiece: false, gameOver: false },
+    board,
+    newPiece,
+  ];
+}

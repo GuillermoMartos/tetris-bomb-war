@@ -5,13 +5,14 @@ import {
   startEndGame,
   nextTetra,
   tetraedrum,
+  currentTetra,
 } from "@/redux/actions/piecesSlice";
 import { useEffect, useRef, useState } from "react";
 import {
-  changeY,
+  changePieceIndicator,
   changePositionsAndUpdateBoard,
-  checkGameOver,
   collisionHappened,
+  checkKeyboardCommands,
 } from "./helpers/helpers";
 import Board from "./components/board";
 import {
@@ -21,11 +22,15 @@ import {
 } from "./shapes/shapes";
 
 export default function Home() {
-  const initialSpeed = 150;
+  const initialSpeed = 300;
   const isPlaying = useAppSelector((state) => state.playing);
   const dispatch = UseAppDispatch();
-  var currentPiece = useAppSelector((s) => s.currentTetraedrum);
-  var nextPiece = useAppSelector((s) => s.nextTetraedrum);
+  var currentPiece = useAppSelector<tetraedrum | null>(
+    (state) => state.currentTetraedrum
+  );
+  var nextPiece = useAppSelector<tetraedrum | null>(
+    (state) => state.nextTetraedrum
+  );
   const [copyPiece, setcopyPiece] = useState<null | tetraedrum>(null);
   const [score, setScore] = useState<number>(0);
   const [maxScore, setMaxScore] = useState<number>(0);
@@ -42,15 +47,14 @@ export default function Home() {
   // read every speed time to set matrixBoard each time
   useEffect(() => {
     if (!currentPiece && isPlaying) {
-      console.log("queee!");
       dispatch(
         nextTetra({
-          position: { x: 0, y: 5 },
+          position: { x: 0, y: 1 },
           shape: assignNewRandomPieceShape(),
         })
       );
-      return;
     }
+    window.addEventListener("keydown", handleKeyboardCommands);
     function handleKeyboardCommands(event: KeyboardEvent) {
       if (event.code == "Enter") {
         dispatch(startEndGame(isPlaying));
@@ -59,39 +63,139 @@ export default function Home() {
         disableKeyboardMovementsRef.current = false;
         return;
       }
-      // currentPiece right or left moving from keyboard
-      if (event.code === "ArrowLeft" && copyPiece && !busyMovementRef.current) {
+      if (event.code === "Space" && !busyMovementRef.current && copyPiece) {
+        changeMovementRef.current = true;
+        busyMovementRef.current = true;
+        let copyMatrix: matrix = JSON.parse(JSON.stringify(boardMatrix));
+        const changer: changePieceIndicator = {
+          right: false,
+          left: false,
+          rotate: true,
+        };
+        const rotatedPiece: tetraedrum = {
+          ...copyPiece,
+          shape: pieceRotator(copyPiece.shape),
+        };
+        const [collisionHappened, boardToUpdate, newPiece] =
+          checkKeyboardCommands(copyMatrix, rotatedPiece, changer);
+        if (!collisionHappened.collision) {
+          shooter(boardToUpdate, speed).then(() => {
+            setcopyPiece(newPiece);
+            setboardMatrix(boardToUpdate);
+            let awaitFinishingCurrent = setTimeout(() => {
+              changeMovementRef.current = !changeMovementRef.current;
+              busyMovementRef.current = !busyMovementRef.current;
+              const advanceNewPiece = {
+                ...newPiece,
+                position: {
+                  ...newPiece.position,
+                  x: newPiece.position.x + 1,
+                },
+              };
+              setcopyPiece(advanceNewPiece);
+              dispatch(currentTetra(advanceNewPiece));
+              clearTimeout(awaitFinishingCurrent);
+            }, speed);
+          });
+        } else if (collisionHappened.collision) {
+          shooter(copyMatrix, speed, collisionHappened);
+        }
+      }
+      // Piece right or left moving from keyboard
+      if (event.code === "ArrowLeft" && !busyMovementRef.current && copyPiece) {
+        // right side border reached
+        if (copyPiece.position.y === 0) {
+          return;
+        }
         // moving the piece change references so shooter() won't thrigger twice
-        changeMovementRef.current = !changeMovementRef.current;
-        busyMovementRef.current = !busyMovementRef.current;
-        if (currentPiece && isPlaying) {
-          const changer: changeY = { right: false, left: true };
-          shooter(boardMatrix, changer);
+        changeMovementRef.current = true;
+        busyMovementRef.current = true;
+        let copyMatrix: matrix = JSON.parse(JSON.stringify(boardMatrix));
+        const changer: changePieceIndicator = {
+          right: false,
+          left: true,
+          rotate: false,
+        };
+        const [collisionHappened, boardToUpdate, newPiece] =
+          checkKeyboardCommands(copyMatrix, copyPiece, changer);
+        if (!collisionHappened.collision) {
+          shooter(boardToUpdate, speed).then(() => {
+            setcopyPiece(newPiece);
+            setboardMatrix(boardToUpdate);
+            let awaitFinishingCurrent = setTimeout(() => {
+              changeMovementRef.current = !changeMovementRef.current;
+              busyMovementRef.current = !busyMovementRef.current;
+              const advanceNewPiece = {
+                ...newPiece,
+                position: {
+                  ...newPiece.position,
+                  x: newPiece.position.x + 1,
+                },
+              };
+              setcopyPiece(advanceNewPiece);
+              dispatch(currentTetra(advanceNewPiece));
+              clearTimeout(awaitFinishingCurrent);
+            }, speed);
+          });
+        } else if (collisionHappened.collision) {
+          shooter(copyMatrix, speed, collisionHappened);
         }
       } else if (
         event.code === "ArrowRight" &&
         copyPiece &&
         !busyMovementRef.current
       ) {
-        busyMovementRef.current = !busyMovementRef.current;
-        changeMovementRef.current = !changeMovementRef.current;
-        const changer: changeY = { right: true, left: false };
-        shooter(boardMatrix, changer);
+        // right side border reached
+        if (copyPiece.position.y === 9) {
+          return;
+        }
+        // moving the piece change references so shooter() won't thrigger twice
+        changeMovementRef.current = true;
+        busyMovementRef.current = true;
+        let copyMatrix: matrix = JSON.parse(JSON.stringify(boardMatrix));
+        const changer: changePieceIndicator = {
+          right: true,
+          left: false,
+          rotate: false,
+        };
+        const [collisionHappened, boardToUpdate, newPiece] =
+          checkKeyboardCommands(copyMatrix, copyPiece, changer);
+        if (!collisionHappened.collision) {
+          shooter(boardToUpdate, speed).then(() => {
+            setcopyPiece(newPiece);
+            setboardMatrix(boardToUpdate);
+            let awaitFinishingCurrent = setTimeout(() => {
+              changeMovementRef.current = !changeMovementRef.current;
+              busyMovementRef.current = !busyMovementRef.current;
+              const advanceNewPiece = {
+                ...newPiece,
+                position: {
+                  ...newPiece.position,
+                  x: newPiece.position.x + 1,
+                },
+              };
+              setcopyPiece(advanceNewPiece);
+              dispatch(currentTetra(advanceNewPiece));
+              clearTimeout(awaitFinishingCurrent);
+            }, speed);
+          });
+        } else if (collisionHappened.collision) {
+          shooter(copyMatrix, speed, collisionHappened);
+        }
       }
     }
-    window.addEventListener("keydown", handleKeyboardCommands);
 
     // this will thrigger shooter each speed time for pieces to go down
-    if (currentPiece && isPlaying && !changeMovementRef.current) {
+    if (!changeMovementRef.current && isPlaying && currentPiece) {
       // deep copy, the array is nested, so a simple array slice won't work
       const copyMatrix: matrix = JSON.parse(JSON.stringify(boardMatrix));
       const [collisionHappened, boardToUpdate, newCopyPiece] =
         changePositionsAndUpdateBoard(copyMatrix, copyPiece ?? currentPiece);
       if (!collisionHappened.collision) {
         setcopyPiece(newCopyPiece);
-        shooter(boardToUpdate);
+        shooter(boardToUpdate, speed);
       } else if (collisionHappened.collision) {
-        shooter(copyMatrix, undefined, collisionHappened);
+        shooter(copyMatrix, speed, collisionHappened);
       }
     }
     return () => {
@@ -101,23 +205,28 @@ export default function Home() {
 
   async function shooter(
     boardToUpdate: matrix,
-    changeY?: changeY,
+    speed: number,
     collisionHappened?: collisionHappened
   ) {
-    await moveLoop(boardToUpdate, speed, changeY, collisionHappened);
+    moveLoop(boardToUpdate, speed, collisionHappened);
     setScore(score + 0.3);
-    return;
   }
 
   async function moveLoop(
     boardToUpdate: matrix,
     speed: number,
-    changeY?: changeY,
     collisionHappened?: collisionHappened
   ) {
     let esperame = setTimeout(() => {
       // check colission for game over or new piece dispatch
+
       if (collisionHappened?.collision) {
+        busyMovementRef.current
+          ? (busyMovementRef.current = !busyMovementRef.current)
+          : null;
+        changeMovementRef.current
+          ? (changeMovementRef.current = !changeMovementRef.current)
+          : null;
         if (collisionHappened.gameOver) {
           setcopyPiece(null);
           alert("Game Over");
@@ -126,92 +235,18 @@ export default function Home() {
         setcopyPiece(null);
         return dispatch(
           nextTetra({
-            position: { x: 0, y: 5 },
-            shape: assignNewRandomPieceShape(),
-          })
-        );
-      }
-      // la currentPieceCopy con que manejamos la dinamica de movimiento para abajo lee primero si tiene que moverse izq/der
-      if (changeMovementRef.current && copyPiece && changeY) {
-        // no permite moverse fuera de los límites
-        if (
-          (copyPiece.position.y === 0 && changeY.left) ||
-          (copyPiece.position.y === 9 && changeY.right)
-        ) {
-          changeMovementRef.current = !changeMovementRef.current;
-          busyMovementRef.current = false;
-          return setboardMatrix((prev) => {
-            return prev.slice();
-          });
-        }
-        if (copyPiece.position.x < 18) {
-          if (
-            boardToUpdate[copyPiece.position.x + 1][copyPiece.position.y] !== 0
-          ) {
-            return setboardMatrix((prev) => prev);
-          }
-        }
-        if (
-          copyPiece &&
-          boardToUpdate[copyPiece.position.x][
-            changeY.left ? copyPiece.position.y - 1 : copyPiece.position.y + 1
-          ] == 0
-        ) {
-          const secondCopyPiece = { ...copyPiece };
-          setcopyPiece((prev) => {
-            if (prev)
-              return {
-                ...prev,
-                position: {
-                  y: changeY.left ? prev.position.y - 1 : prev.position.y + 1,
-                  x: prev.position.x,
-                },
-              };
-            return prev;
-          });
-
-          setboardMatrix((prev) => {
-            let copyMatrix = prev.slice();
-            if (
-              (copyMatrix[secondCopyPiece.position.x][
-                secondCopyPiece.position.y
-              ] = 1)
-            ) {
-            }
-            // borrado del anterior casillero ocupado
-            copyMatrix[secondCopyPiece.position.x][
-              secondCopyPiece.position.y
-            ] = 0;
-            // pintado del nuevo casillero ojo, acá vamos a mirar también que no estemos en el borde ya del eje Y
-            copyMatrix[secondCopyPiece.position.x][
-              changeY.left
-                ? secondCopyPiece.position.y - 1
-                : secondCopyPiece.position.y + 1
-            ] = 1;
-            return copyMatrix.slice();
-          });
-          busyMovementRef.current = false;
-          changeMovementRef.current = !changeMovementRef.current;
-
-          return;
-        }
-        busyMovementRef.current = false;
-        changeMovementRef.current = !changeMovementRef.current;
-        return dispatch(
-          nextTetra({
-            position: {
-              x: copyPiece.position.x,
-              y: copyPiece.position.y,
-            },
+            position: { x: 0, y: 2 },
             shape: assignNewRandomPieceShape(),
           })
         );
       }
 
-      // we update the matrix board inside the timeout with our dynamic speed waiting
-      setboardMatrix(() => {
-        return boardToUpdate.slice();
-      });
+      if (!changeMovementRef.current) {
+        // we update the matrix board inside the timeout with our dynamic speed waiting
+        setboardMatrix(() => {
+          return boardToUpdate.slice();
+        });
+      }
       clearTimeout(esperame);
     }, speed);
   }

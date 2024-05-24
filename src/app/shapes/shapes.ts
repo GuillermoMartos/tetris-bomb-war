@@ -5,12 +5,7 @@ const squareBoy: matrix = [
   [1, 1],
 ];
 
-const bigBoy: matrix = [
-  [0, 1, 0],
-  [0, 1, 0],
-  [0, 1, 0],
-  [0, 1, 0],
-];
+const bigBoy: matrix = [[1], [1], [1], [1]];
 
 const tBoy: matrix = [
   [0, 1, 0],
@@ -34,15 +29,24 @@ const boomBomb: matrix = [
 ];
 
 export function pieceRotator(piece: matrix): matrix {
-  let rowsToColumns = piece[0].map((_, colIndex) =>
+  const rowsToColumns = piece[0].map((_, colIndex) =>
     piece.map((row) => row[colIndex])
   );
-  let reversedRows = rowsToColumns.map((row) => row.reverse());
+  const reversedRows = rowsToColumns.map((row) => row.reverse());
 
   return reversedRows;
 }
 
-export function assignNewRandomPieceShape() {
+export function pieceRotatorCounterClockwise(piece: matrix): matrix {
+  const columnsToRows = piece[0].map((_, colIndex) =>
+    piece.map((row) => row[colIndex])
+  );
+  const reversedColumns = columnsToRows.reverse();
+
+  return reversedColumns;
+}
+
+export function assignNewRandomPieceShape(): matrix {
   const allShapes = [squareBoy, bigBoy, tBoy, lBoy, snakySnake, boomBomb];
   return allShapes[Math.floor(Math.random() * allShapes.length)];
 }

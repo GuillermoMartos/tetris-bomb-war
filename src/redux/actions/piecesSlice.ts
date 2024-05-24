@@ -33,17 +33,23 @@ export const piezasSlice = createSlice({
         playing: !action.payload,
       };
     },
+    currentTetra: (state, action: PayloadAction<tetraedrum>) => {
+      return {
+        ...state,
+        currentTetraedrum: action.payload,
+      };
+    },
     startEndGame: (state, action: PayloadAction<boolean>) => {
       if (!action.payload) {
         return {
           ...state,
           playing: !action.payload,
           nextTetraedrum: {
-            position: { x: 0, y: 5 },
+            position: { x: 0, y: 2 },
             shape: assignNewRandomPieceShape(),
           },
           currentTetraedrum: {
-            position: { x: 0, y: 5 },
+            position: { x: 0, y: 2 },
             shape: assignNewRandomPieceShape(),
           },
         };
@@ -55,12 +61,11 @@ export const piezasSlice = createSlice({
       };
     },
     nextTetra: (state, action: PayloadAction<tetraedrum>) => {
-      console.log(action.payload);
       return {
         ...state,
         playing: state.playing,
         nextTetraedrum: {
-          position: { x: 0, y: 5 },
+          position: { x: 0, y: 2 },
           shape: assignNewRandomPieceShape(),
         },
         currentTetraedrum: action.payload,
@@ -69,5 +74,6 @@ export const piezasSlice = createSlice({
   },
 });
 
-export const { startEndGame, nextTetra, playPause } = piezasSlice.actions;
+export const { startEndGame, nextTetra, playPause, currentTetra } =
+  piezasSlice.actions;
 export default piezasSlice.reducer;
