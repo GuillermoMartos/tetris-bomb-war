@@ -22,7 +22,7 @@ import {
 } from "./shapes/shapes";
 
 export default function Home() {
-  const initialSpeed = 300;
+  const initialSpeed = 100;
   const isPlaying = useAppSelector((state) => state.playing);
   const dispatch = UseAppDispatch();
   var currentPiece = useAppSelector<tetraedrum | null>(
@@ -233,6 +233,21 @@ export default function Home() {
           return dispatch(startEndGame(isPlaying));
         }
         setcopyPiece(null);
+        setboardMatrix((previousMatrix) => {
+          for (let index = 0; index < previousMatrix.length; index++) {
+            if (!previousMatrix[index].some((el) => el === 0)) {
+              previousMatrix.splice(index, 1);
+              previousMatrix.unshift(Array(10).fill(0));
+              setScore((prev) => {
+                return prev + 50;
+              });
+              setSpeed((prev) => {
+                return prev * 0.95;
+              });
+            }
+          }
+          return previousMatrix.slice();
+        });
         return dispatch(
           nextTetra({
             position: { x: 0, y: 2 },
